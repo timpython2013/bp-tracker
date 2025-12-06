@@ -1,33 +1,16 @@
-// Blood Pressure Tracker
-// Save as: bp-tracker.js
-
-const readline = require('readline');
+// Blood Pressure Tracker - Phase 1 Professional Version
+const inquirer = require('inquirer');
+const chalk = require('chalk');
 const fs = require('fs');
-const path = require('path');
 
 const DATA_FILE = 'bp_data.csv';
-
-// Create readline interface
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout
-});
-
-// Helper function to ask questions
-function ask(question) {
-  return new Promise((resolve) => {
-    rl.question(question, (answer) => {
-      resolve(answer.trim());
-    });
-  });
-}
 
 // Initialize CSV file with headers if it doesn't exist
 function initializeCSV() {
   if (!fs.existsSync(DATA_FILE)) {
     const headers = 'DateTime,Systolic,Diastolic,HeartRate,Location,Notes\n';
     fs.writeFileSync(DATA_FILE, headers);
-    console.log('📊 Created new data file: bp_data.csv\n');
+    console.log(chalk.green('📊 Created new data file: bp_data.csv\n'));
   }
 }
 
@@ -35,12 +18,6 @@ function initializeCSV() {
 function getCurrentDateTime() {
   const now = new Date();
   return now.toISOString().replace('T', ' ').substring(0, 19);
-}
-
-// Validate numeric input
-function isValidNumber(value, min, max) {
-  const num = parseInt(value);
-  return !isNaN(num) && num >= min && num <= max;
 }
 
 // Escape CSV fields
@@ -51,68 +28,88 @@ function escapeCSV(field) {
   return field;
 }
 
+// Get BP category
+function getBPCategory(systolic, diastolic) {
+  const sys = parseInt(systolic);
+  const dia = parseInt(diastolic);
+  
+  if (sys < 120 && dia < 80) return { text: 'Normal', color: 'green', icon: '✅' };
+  if (sys < 130 && dia < 80) return { text: 'Elevated', color: 'yellow', icon: '⚠️' };
+  if (sys < 140 || dia < 90) return { text: 'High BP Stage 1', color: 'yellow', icon: '⚠️' };
+  return { text: 'High BP Stage 2', color: 'red', icon: '🚨' };
+}
+
 // Add new BP entry
 async function addEntry() {
-  console.log('\n=== New Blood Pressure Entry ===\n');
+  console.log(chalk.cyan.bold('\n=== New Blood Pressure Entry ===\n'));
   
-  // Date/Time
   const defaultDateTime = getCurrentDateTime();
-  console.log(`Default: ${defaultDateTime}`);
-  const dateTime = await ask('Date/Time (press Enter for now, or enter YYYY-MM-DD HH:MM:SS): ');
-  const finalDateTime = dateTime || defaultDateTime;
   
-  // Systolic
-  let systolic;
-  while (true) {
-    systolic = await ask('Systolic (mmHg, 70-250): ');
-    if (isValidNumber(systolic, 70, 250)) break;
-    console.log('❌ Please enter a valid number between 70 and 250');
-  }
-  
-  // Diastolic
-  let diastolic;
-  while (true) {
-    diastolic = await ask('Diastolic (mmHg, 40-150): ');
-    if (isValidNumber(diastolic, 40, 150)) break;
-    console.log('❌ Please enter a valid number between 40 and 150');
-  }
-  
-  // Heart Rate
-  let heartRate;
-  while (true) {
-    heartRate = await ask('Heart Rate (bpm, 30-200): ');
-    if (isValidNumber(heartRate, 30, 200)) break;
-    console.log('❌ Please enter a valid number between 30 and 200');
-  }
-  
-  // Location
-  const location = await ask('Location (e.g., Home, Doctor\'s Office): ');
-  
-  // Notes
-  const notes = await ask('Notes (optional): ');
+  const answers = await inquirer.prompt([
+    {
+      type: 'input',
+      name: 'dateTime',
+      message: 'Date/Time (press Enter for now):',
+      default: defaultDateTime
+    },
+    {
+      type: 'number',
+      name: 'systolic',
+      message: 'Systolic (mmHg):',
+      validate: (value) => {
+        if (value >= 70 && value <= 250) return true;
+        return 'Please enter a value between 70 and 250';
+      }
+    },
+    {
+      type: 'number',
+      name: 'diastolic',
+      message: 'Diastolic (mmHg):',
+      validate: (value) => {
+        if (value >= 40 && value <= 150) return true;
+        return 'Please enter a value between 40 and 150';
+      }
+    },
+    {
+      type: 'number',
+      name: 'heartRate',
+      message: 'Heart Rate (bpm):',
+      validate: (value) => {
+        if (value >= 30 && value <= 200) return true;
+        return 'Please enter a value between 30 and 200';
+      }
+    },
+    {
+      type: 'input',
+      name: 'location',
+      message: 'Location:',
+      default: 'Home'
+    },
+    {
+      type: 'input',
+      name: 'notes',
+      message: 'Notes (optional):',
+      default: ''
+    }
+  ]);
   
   // Save to CSV
-  const row = `${finalDateTime},${systolic},${diastolic},${heartRate},${escapeCSV(location)},${escapeCSV(notes)}\n`;
+  const row = `${answers.dateTime},${answers.systolic},${answers.diastolic},${answers.heartRate},${escapeCSV(answers.location)},${escapeCSV(answers.notes)}\n`;
   fs.appendFileSync(DATA_FILE, row);
   
-  console.log('\n✅ Entry saved successfully!\n');
+  console.log(chalk.green.bold('\n✅ Entry saved successfully!\n'));
   
   // Show summary
-  const bp = `${systolic}/${diastolic}`;
-  let category = '';
-  if (parseInt(systolic) < 120 && parseInt(diastolic) < 80) category = '✅ Normal';
-  else if (parseInt(systolic) < 130 && parseInt(diastolic) < 80) category = '⚠️  Elevated';
-  else if (parseInt(systolic) < 140 || parseInt(diastolic) < 90) category = '⚠️  High BP Stage 1';
-  else category = '🚨 High BP Stage 2';
-  
-  console.log(`BP: ${bp} mmHg - ${category}`);
-  console.log(`Heart Rate: ${heartRate} bpm\n`);
+  const category = getBPCategory(answers.systolic, answers.diastolic);
+  console.log(chalk.bold('Summary:'));
+  console.log(`  BP: ${chalk.cyan(answers.systolic + '/' + answers.diastolic)} mmHg - ${chalk[category.color](category.icon + ' ' + category.text)}`);
+  console.log(`  Heart Rate: ${chalk.cyan(answers.heartRate)} bpm\n`);
 }
 
 // View all entries
 function viewEntries() {
   if (!fs.existsSync(DATA_FILE)) {
-    console.log('\n📊 No entries found. Add your first entry!\n');
+    console.log(chalk.yellow('\n📊 No entries found. Add your first entry!\n'));
     return;
   }
   
@@ -120,19 +117,29 @@ function viewEntries() {
   const lines = data.split('\n').filter(line => line.trim());
   
   if (lines.length <= 1) {
-    console.log('\n📊 No entries found. Add your first entry!\n');
+    console.log(chalk.yellow('\n📊 No entries found. Add your first entry!\n'));
     return;
   }
   
-  console.log('\n=== Blood Pressure History ===\n');
-  console.log(lines.join('\n'));
-  console.log(`\nTotal entries: ${lines.length - 1}\n`);
+  console.log(chalk.cyan.bold('\n=== Blood Pressure History ===\n'));
+  
+  // Print header
+  console.log(chalk.bold(lines[0]));
+  console.log(chalk.gray('─'.repeat(80)));
+  
+  // Print entries
+  for (let i = 1; i < lines.length; i++) {
+    console.log(lines[i]);
+  }
+  
+  console.log(chalk.gray('─'.repeat(80)));
+  console.log(chalk.green(`\nTotal entries: ${lines.length - 1}\n`));
 }
 
 // View statistics
 function viewStats() {
   if (!fs.existsSync(DATA_FILE)) {
-    console.log('\n📊 No data available yet.\n');
+    console.log(chalk.yellow('\n📊 No data available yet.\n'));
     return;
   }
   
@@ -140,7 +147,7 @@ function viewStats() {
   const lines = data.split('\n').filter(line => line.trim()).slice(1); // Skip header
   
   if (lines.length === 0) {
-    console.log('\n📊 No data available yet.\n');
+    console.log(chalk.yellow('\n📊 No data available yet.\n'));
     return;
   }
   
@@ -169,52 +176,55 @@ function viewStats() {
   
   const count = lines.length;
   
-  console.log('\n=== Statistics ===\n');
-  console.log(`Total Readings: ${count}`);
-  console.log(`\nBlood Pressure (mmHg):`);
-  console.log(`  Average: ${Math.round(systolicSum/count)}/${Math.round(diastolicSum/count)}`);
-  console.log(`  Highest: ${systolicMax}/${diastolicMax}`);
-  console.log(`  Lowest:  ${systolicMin}/${diastolicMin}`);
-  console.log(`\nHeart Rate (bpm):`);
-  console.log(`  Average: ${Math.round(hrSum/count)}`);
-  console.log(`  Highest: ${hrMax}`);
-  console.log(`  Lowest:  ${hrMin}\n`);
+  console.log(chalk.cyan.bold('\n=== Statistics ===\n'));
+  console.log(chalk.bold(`Total Readings: ${chalk.green(count)}`));
+  console.log(chalk.bold('\nBlood Pressure (mmHg):'));
+  console.log(`  Average: ${chalk.cyan(Math.round(systolicSum/count) + '/' + Math.round(diastolicSum/count))}`);
+  console.log(`  Highest: ${chalk.red(systolicMax + '/' + diastolicMax)}`);
+  console.log(`  Lowest:  ${chalk.green(systolicMin + '/' + diastolicMin)}`);
+  console.log(chalk.bold('\nHeart Rate (bpm):'));
+  console.log(`  Average: ${chalk.cyan(Math.round(hrSum/count))}`);
+  console.log(`  Highest: ${chalk.red(hrMax)}`);
+  console.log(`  Lowest:  ${chalk.green(hrMin)}\n`);
 }
 
 // Main menu
 async function showMenu() {
-  console.log('=== Blood Pressure Tracker ===');
-  console.log('1. Add new entry');
-  console.log('2. View all entries');
-  console.log('3. View statistics');
-  console.log('4. Exit');
+  const answer = await inquirer.prompt([
+    {
+      type: 'list',
+      name: 'choice',
+      message: chalk.bold('What would you like to do?'),
+      choices: [
+        { name: '➕ Add new entry', value: 'add' },
+        { name: '📋 View all entries', value: 'view' },
+        { name: '📊 View statistics', value: 'stats' },
+        { name: '🚪 Exit', value: 'exit' }
+      ]
+    }
+  ]);
   
-  const choice = await ask('\nSelect option (1-4): ');
-  
-  switch(choice) {
-    case '1':
+  switch(answer.choice) {
+    case 'add':
       await addEntry();
       await showMenu();
       break;
-    case '2':
+    case 'view':
       viewEntries();
       await showMenu();
       break;
-    case '3':
+    case 'stats':
       viewStats();
       await showMenu();
       break;
-    case '4':
-      console.log('\n👋 Goodbye! Stay healthy!\n');
-      rl.close();
+    case 'exit':
+      console.log(chalk.green.bold('\n👋 Goodbye! Stay healthy!\n'));
+      process.exit(0);
       break;
-    default:
-      console.log('\n❌ Invalid option. Please try again.\n');
-      await showMenu();
   }
 }
 
 // Start the application
-console.log('\n💉 Blood Pressure Tracker v1.0\n');
+console.log(chalk.blue.bold('\n💉 Blood Pressure Tracker v1.1 (Phase 1)\n'));
 initializeCSV();
 showMenu();
