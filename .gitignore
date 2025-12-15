@@ -4,3 +4,10 @@ bp_data.csv
 *.log
 .env
 .DS_Store
+
+# Database
+database/*.db
+database/*.db-journal
+
+# Environment
+.env
